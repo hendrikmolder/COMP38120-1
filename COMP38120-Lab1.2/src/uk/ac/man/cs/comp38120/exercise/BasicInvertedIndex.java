@@ -124,8 +124,10 @@ public class BasicInvertedIndex extends Configured implements Tool
         	/* Get the filename from the first line */        	
         	String line = value.toString().trim();
         	HashMap<String, ArrayListWritable<IntWritable>> map = new HashMap<String, ArrayListWritable<IntWritable>>();
+        	PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pair = new PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>();
         	Text text = new Text();
 			IntWritable position = new IntWritable(0);
+			TripleOfIntsString keyTriple = new TripleOfIntsString();
 			
    
         	/* Tokenize the text file */
@@ -163,15 +165,11 @@ public class BasicInvertedIndex extends Configured implements Tool
         	// http://lintool.github.io/MapReduceAlgorithms/
         	
         	for (String s : map.keySet()) {
-        		TripleOfIntsString keyTriple = new TripleOfIntsString();
         		/* KeyTriple: (count of a particular token; count of all tokents; file name) */
         		keyTriple.set(map.get(s).size(), tokenCount, INPUTFILE.toString());
-        		
         		text.set(s);
-        		PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pair = new PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>();
         		pair.set(keyTriple, map.get(s));
         		context.write(text, pair);
-        		
         	}
         }
     }
@@ -182,8 +180,9 @@ public class BasicInvertedIndex extends Configured implements Tool
 				ArrayListWritable<PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>>>
     {
 
-        // TODO
-        // This Reduce Job should take in a key and an iterable of file names
+    	Integer TOTAL_NUM_FILES = 6;
+    	
+    	// This Reduce Job should take in a key and an iterable of file names
         // It should convert this iterable to a writable array list and output
         // it along with the key
         public void reduce(
@@ -191,47 +190,49 @@ public class BasicInvertedIndex extends Configured implements Tool
                 Iterable<PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>> values,
                 Context context) throws IOException, InterruptedException
         {
-        	Integer TOTAL_NUM_FILES = 6;
+        	
+        	Integer countOfFilesTokenAppearsIn = 0;
         	/* The result array of all occurrences of the token */
         	ArrayListWritable<PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>> occurences 
         		= new ArrayListWritable<PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>>();
-    		/* A copy of the Pair passed from the Mapper to avoid Hadoop issues */
+        	/* A copy of the Pair passed from the Mapper to avoid Hadoop issues */
         	PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pairCopy 
     			= new PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>();
     		/* A copy of the Pair from the Pair passed from Mapper to avoid Hadoop issues */
         	PairOfWritables<Text, String2FloatOpenHashMapWritable> nameAndMetaData 
-    			= new PairOfWritables<Text, String2FloatOpenHashMapWritable>();    				
+    			= new PairOfWritables<Text, String2FloatOpenHashMapWritable>(); 
     		/* Result Pair that will be added to the occurrences */
         	PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>> resultPair 
-    			= new PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>();
-        	String2FloatOpenHashMapWritable metadata = new String2FloatOpenHashMapWritable();
-        	Double tf, idf, tfidf;
-        	Text filename = new Text();
-        	
-    		/* Loop through the occurrences of a token */
+    			= new PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>();		
+        	Double tf, idf;
+
+        	/* Loop through the occurrences of a token */
         	for (PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pair : values) {
-        		Iterable<PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>> copyValues = values;
-        		System.out.println(key + ":" + Iterables.size(copyValues));
+        		countOfFilesTokenAppearsIn++;
         		pairCopy.set(pair.getLeftElement(), pair.getRightElement());
-        		metadata.clear();
+        		String2FloatOpenHashMapWritable metadata = new String2FloatOpenHashMapWritable();
+        		Text filename = new Text();
         		filename.set(pairCopy.getLeftElement().getRightElement());
-        		
-        		/* Calculate tf, idf, tf-idf */
+
         		tf 		= (double) pairCopy.getLeftElement().getLeftElement() / pairCopy.getLeftElement().getMiddleElement();
-        		idf 	= Math.log(TOTAL_NUM_FILES / (Iterables.size(copyValues) + 1));
-        		tfidf	= tf * idf;
         		        		
         		/* Populate metadata */
-        		metadata.put("tf", new Float(tf));
-        		metadata.put("idf", new Float(idf));
-        		metadata.put("tfidf",  new Float(tfidf));
-        		
+        		metadata.put("tf", new Float(tf));        		
         		nameAndMetaData.set(filename, metadata);
         		
         		/* Add result result */
         		resultPair.set(nameAndMetaData, pairCopy.getRightElement());
         		occurences.add(resultPair);
         	}
+        	
+        	idf 	=  Math.log((double) TOTAL_NUM_FILES / countOfFilesTokenAppearsIn);
+    		
+        	/* Update the TF-IDF and IDF */
+        	for (PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>> updatePair : occurences) {
+        		updatePair.getLeftElement().getRightElement().put("tfidf", new Float(updatePair.getLeftElement().getRightElement().get("tf") * idf));
+        		updatePair.getLeftElement().getRightElement().put("idf", new Float(idf));
+        	}
+        	
         	/* Emit results */	
         	context.write(key, occurences);        	
         }
