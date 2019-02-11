@@ -12,43 +12,39 @@
  */
 package uk.ac.man.cs.comp38120.exercise;
 
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.StringTokenizer;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-
 import uk.ac.man.cs.comp38120.io.array.ArrayListWritable;
-import uk.ac.man.cs.comp38120.io.map.HashMapWritable;
 import uk.ac.man.cs.comp38120.io.map.String2FloatOpenHashMapWritable;
-import uk.ac.man.cs.comp38120.io.array.ArrayListOfLongsWritable;
 import uk.ac.man.cs.comp38120.io.pair.PairOfWritables;
 import uk.ac.man.cs.comp38120.io.triple.TripleOfIntsString;
-import uk.ac.man.cs.comp38120.io.pair.Pair;
-import uk.ac.man.cs.comp38120.io.pair.PairOfStrings;
-import uk.ac.man.cs.comp38120.util.XParser;
-import uk.ac.man.cs.comp38120.ir.StopAnalyser;
 import uk.ac.man.cs.comp38120.ir.Stemmer;
+import uk.ac.man.cs.comp38120.ir.StopAnalyser;
+import uk.ac.man.cs.comp38120.util.XParser;
 
 public class BasicInvertedIndex extends Configured implements Tool
 {
@@ -195,19 +191,21 @@ public class BasicInvertedIndex extends Configured implements Tool
         	/* The result array of all occurrences of the token */
         	ArrayListWritable<PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>> occurences 
         		= new ArrayListWritable<PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>>();
-        	/* A copy of the Pair passed from the Mapper to avoid Hadoop issues */
-        	PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pairCopy 
-    			= new PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>();
-    		/* A copy of the Pair from the Pair passed from Mapper to avoid Hadoop issues */
-        	PairOfWritables<Text, String2FloatOpenHashMapWritable> nameAndMetaData 
-    			= new PairOfWritables<Text, String2FloatOpenHashMapWritable>(); 
-    		/* Result Pair that will be added to the occurrences */
-        	PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>> resultPair 
-    			= new PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>();		
+        			
         	Double tf, idf;
 
         	/* Loop through the occurrences of a token */
         	for (PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pair : values) {
+        		/* A copy of the Pair passed from the Mapper to avoid Hadoop issues */
+            	PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>> pairCopy 
+        			= new PairOfWritables<TripleOfIntsString, ArrayListWritable<IntWritable>>();
+        		/* A copy of the Pair from the Pair passed from Mapper to avoid Hadoop issues */
+            	PairOfWritables<Text, String2FloatOpenHashMapWritable> nameAndMetaData 
+        			= new PairOfWritables<Text, String2FloatOpenHashMapWritable>(); 
+        		/* Result Pair that will be added to the occurrences */
+            	PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>> resultPair 
+        			= new PairOfWritables<PairOfWritables<Text, String2FloatOpenHashMapWritable>, ArrayListWritable<IntWritable>>();
+            	
         		countOfFilesTokenAppearsIn++;
         		pairCopy.set(pair.getLeftElement(), pair.getRightElement());
         		String2FloatOpenHashMapWritable metadata = new String2FloatOpenHashMapWritable();
